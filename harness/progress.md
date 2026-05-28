@@ -63,6 +63,14 @@ Events: `kickoff`, `#N <title>` (build session), `shipped #N`, `retro #N`, `note
 - PR #33 squash-merged as 2b10114. Branch rebased onto main before merge (the log(#10) commit on main put it behind, same pattern as #6/#7); single force-with-lease push, CI re-ran 23s, then merge.
 - Tracking: issue #10 auto-closed by `Closes #10`; project board → Done.
 
+## 2026-05-28 09:47 — #11 Pull issue body edit history via userContentEdits
+- PM: 5-way canonicalization — pinned AC2 to `diff` (dropped before/after option), pinned `editor: str | None`, pinned lazy-fetch via NEW `collect_edits(repo_slug, issue_number)` function (NOT a field on `IssueRecord`), pinned `gh api graphql` envelope, pinned fixture strategy (mocks + 1 live integration vs issue #6). Followed the no-ADR-this-time instruction; rationale lives in issue Notes per #10's retro lesson.
+- Implementer: new `EditRecord` frozen dataclass + `collect_edits()` function in `collector/gh.py`, re-exported via `__init__.py`. `IssueRecord` and `collect_issues` byte-identical (reviewer confirmed). Defensive sort by `edited_at` rather than trusting API order (live API returns newest-first). 1 commit (7360dc7); pytest 35 → 46.
+- Tester evidence: posted on #11 (comment 4566270915). Explicitly verified integration test ran (not skipped) — the lesson from #10's retro landed. Independent GraphQL probe gave count=3 for issue #6, matching Python API. All 4 AC ticked.
+- Reviewer: APPROVE, CI green. Two non-blocking nits flagged (a docstring typo `doesn't paid → doesn't pay`, and a missing inline comment about `gh issue view --json userContentEdits` not working). Could fold into a follow-up commit or punt to next collector PR.
+- Discovery worth flagging: `gh issue view --json userContentEdits` returns "Unknown JSON field" — the GraphQL endpoint is the ONLY path. The implementer verified live before relying on it.
+- PR: #34 — CI green.
+
 ## 2026-05-27 23:57 — retro #10
 - **Worked**: PM did substantive 5-way canonicalization including catching the broken `wc -l` baseline (would've been untestable); implementer designed the collector as a *package* not a module, anticipating PR-cycle / body-edit-history stories — same forward-thinking pattern as #7's `validate_repo` seam; reviewer's `gh pr checks --required` discipline caught a CI-only failure that tester missed (first multi-round review of the session, harness handled it cleanly).
 - **Didn't**: tester ran `verify.sh` locally (passed because local has `gh` auth) but didn't think to check `gh pr checks` for CI status — a real blind spot when tests exercise external state. Worth strengthening the tester prompt for collector/CI-touching stories. Rebase friction hit a third time, same dissolves available in #6 addendum.
