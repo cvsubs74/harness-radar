@@ -1,0 +1,9 @@
+# CODEOWNERS
+# https://docs.github.com/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+#
+# /start replaces the placeholder below with your GitHub login. Add more
+# entries when you bring on collaborators, for example:
+#   /server/**   @your-backend-team
+#   /client/**   @your-frontend-team
+
+* @cvsubs74

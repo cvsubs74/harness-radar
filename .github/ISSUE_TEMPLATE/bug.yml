@@ -1,0 +1,50 @@
+name: Bug
+description: A defect in shipped behavior.
+title: "[Bug] "
+labels: ["type:bug"]
+body:
+  - type: dropdown
+    id: priority_hint
+    attributes:
+      label: Priority
+      description: Set the matching `priority:Px` label after creation.
+      options:
+        - P0 — broken in production / blocking work
+        - P1 — broken for common cases
+        - P2 — edge case or cosmetic
+    validations:
+      required: true
+  - type: input
+    id: area
+    attributes:
+      label: Area
+      placeholder: "auth"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the app
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "OS, browser/runtime version, commit SHA."

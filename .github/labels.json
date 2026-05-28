@@ -1,0 +1,22 @@
+{
+  "$comment": "Declarative label set for engineering-workflow harness. Synced by scripts/gh-bootstrap.sh. Edit area:* entries during /kickoff to match the product's domains.",
+  "labels": [
+    {"name": "type:epic",            "color": "5319e7", "description": "Cross-cutting capability spanning multiple stories"},
+    {"name": "type:story",           "color": "1d76db", "description": "A buildable, testable feature"},
+    {"name": "type:bug",             "color": "d73a4a", "description": "A defect to fix"},
+    {"name": "type:spike",           "color": "fbca04", "description": "Time-boxed investigation or research"},
+
+    {"name": "priority:P0",          "color": "b60205", "description": "Must build now"},
+    {"name": "priority:P1",          "color": "d93f0b", "description": "Should build soon"},
+    {"name": "priority:P2",          "color": "fbca04", "description": "Nice to have"},
+
+    {"name": "area:server",          "color": "0075ca", "description": "Backend / API"},
+    {"name": "area:client",          "color": "0075ca", "description": "Frontend / UI"},
+    {"name": "area:db",              "color": "0075ca", "description": "Database / migrations"},
+    {"name": "area:infra",           "color": "0075ca", "description": "Build / deploy / CI"},
+
+    {"name": "meta:blocked",         "color": "ededed", "description": "Blocked on something external"},
+    {"name": "meta:needs-discussion","color": "ededed", "description": "Acceptance criteria need clarification"},
+    {"name": "meta:bootstrap",       "color": "ededed", "description": "Created during /kickoff for audit trail"}
+  ]
+}

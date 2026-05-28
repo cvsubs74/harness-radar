@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "Bash(rm -rf .git)",
+      "Bash(git init:*)",
+      "Bash(./harness/init.sh)",
+      "Bash(./harness/verify.sh)",
+      "Bash(bash harness/init.sh)",
+      "Bash(bash harness/verify.sh)",
+      "Bash(./scripts/new-worktree.sh:*)",
+      "Bash(./scripts/merge-worktree.sh:*)",
+      "Bash(./scripts/gh-bootstrap.sh:*)",
+      "Bash(./scripts/gh-sub-issue.sh:*)",
+      "Bash(./scripts/gh-project.sh:*)",
+      "Bash(./scripts/gh-next-issue.sh:*)",
+      "Bash(bash scripts/new-worktree.sh:*)",
+      "Bash(bash scripts/merge-worktree.sh:*)",
+      "Bash(bash scripts/gh-bootstrap.sh:*)",
+      "Bash(bash scripts/gh-sub-issue.sh:*)",
+      "Bash(bash scripts/gh-project.sh:*)",
+      "Bash(bash scripts/gh-next-issue.sh:*)",
+      "Bash(pwd)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(jq:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(node:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(pnpm:*)",
+      "Bash(yarn:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(pip:*)",
+      "Bash(pytest:*)",
+      "Bash(go:*)",
+      "Bash(cargo:*)",
+      "Bash(make:*)",
+      "Bash(docker:*)",
+      "Bash(curl:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash .claude/hooks/session-start.sh" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash .claude/hooks/stop.sh" }
+        ]
+      }
+    ]
+  },
+  "env": {
+    "ENGINEERING_WORKFLOW": "1"
+  }
+}

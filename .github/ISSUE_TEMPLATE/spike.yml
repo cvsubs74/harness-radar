@@ -1,0 +1,42 @@
+name: Spike
+description: A time-boxed investigation to answer a question or de-risk a story.
+title: "[Spike] "
+labels: ["type:spike"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Spikes produce learning, not shipped code. They must have a clear
+        question, a fixed timebox, and a concrete deliverable (notes, ADR,
+        prototype, decision). When the spike completes, close it and file
+        follow-up stories.
+  - type: input
+    id: area
+    attributes:
+      label: Area
+      placeholder: "auth"
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Research question
+      description: What do we need to know that we don't know now?
+    validations:
+      required: true
+  - type: input
+    id: timebox
+    attributes:
+      label: Timebox
+      description: How long, max. Stop when you hit it even if you don't have a full answer.
+      placeholder: "1 day"
+    validations:
+      required: true
+  - type: textarea
+    id: deliverable
+    attributes:
+      label: Deliverable
+      description: What artifact ends this spike — an ADR, a prototype branch, a comment with findings.
+      placeholder: "ADR under harness/decisions/ and follow-up stories filed."
+    validations:
+      required: true

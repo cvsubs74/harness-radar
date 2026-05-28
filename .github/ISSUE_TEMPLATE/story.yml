@@ -1,0 +1,65 @@
+name: Story
+description: A buildable, testable feature. One story per `/next` session.
+title: "[Story] "
+labels: ["type:story"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Stories are the unit of work for `/next`. They must be small enough
+        to ship in a single session and must have at least one testable
+        acceptance criterion. Add `priority:P0/P1/P2` and `area:<name>` labels
+        after creation — the harness queries those for picking the next issue.
+  - type: input
+    id: parent_epic
+    attributes:
+      label: Parent epic
+      description: Issue number of the parent epic (e.g. `#42`), or `standalone` if no epic.
+      placeholder: "#42"
+  - type: dropdown
+    id: priority_hint
+    attributes:
+      label: Priority
+      description: Hint for the priority label. You must still set the `priority:Px` label after creation (or let the PM agent do it).
+      options:
+        - P0 — must build now
+        - P1 — should build soon
+        - P2 — nice to have
+    validations:
+      required: true
+  - type: input
+    id: area
+    attributes:
+      label: Area
+      description: One word (e.g. `auth`, `api`, `ui`). Used to seed an `area:<value>` label.
+      placeholder: "auth"
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: 1-3 sentences. What does this story enable?
+      placeholder: "Users can sign in to the app with their GitHub account."
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: One testable bullet per line. The tester ticks these only with evidence. Keep them user-visible and observable, not implementation details.
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: Anything explicitly out of scope for this story. Prevents scope creep during implementation.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Links to ADRs, related issues, design references.

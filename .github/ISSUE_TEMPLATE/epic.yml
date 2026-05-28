@@ -1,0 +1,41 @@
+name: Epic
+description: A cross-cutting capability that spans multiple stories.
+title: "[Epic] "
+labels: ["type:epic"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Epics group related stories. Create the epic first, then file stories
+        and link them as sub-issues. Acceptance criteria live on the child
+        stories, not the epic.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: 1-3 sentences. What capability is this and who is it for?
+      placeholder: "A way for users to sign in with their GitHub account."
+    validations:
+      required: true
+  - type: input
+    id: area
+    attributes:
+      label: Area
+      description: One area label that will apply to the child stories (e.g. `auth`, `api`, `ui`). Used to seed `area:<value>` labels.
+      placeholder: "auth"
+    validations:
+      required: true
+  - type: textarea
+    id: child_stories
+    attributes:
+      label: Child stories
+      description: Sketch the stories you expect to file under this epic. They'll be linked as sub-issues after creation.
+      placeholder: |
+        - Sign-in button on landing page
+        - OAuth redirect handler
+        - Session persistence
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Constraints, references, links to ADRs.
