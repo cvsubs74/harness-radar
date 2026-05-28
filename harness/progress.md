@@ -48,4 +48,8 @@ Events include: `kickoff`, `F<NNN> <title>`, `retro F<NNN>`, `shipped F<NNN>`, `
   - 85ae1a5: gh-project.sh `items(first: 200)` → `100` (GraphQL caps connections at 100). Bug #28 filed for proper pagination.
   - In-place fix to project board: Status field options corrected from defaults (Todo/In Progress/Done) to the harness-canonical (Todo/In progress/In review/Done) via updateProjectV2Field mutation. Bug #29 filed for gh-bootstrap.sh to detect+fix auto-created system fields.
 
+## 2026-05-27 18:31 — shipped #6
+- PR #30 squash-merged as 81312f9, remote and local branches deleted.
+- Tracking: issue #6 auto-closed by `Closes #6`; project board → Done.
+
 
