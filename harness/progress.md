@@ -49,3 +49,12 @@ Events: `kickoff`, `#N <title>` (build session), `shipped #N`, `retro #N`, `note
 - **Surprises**: implementer voluntarily added edge-case tests beyond AC (malformed JSON, missing `mode` key, non-dict JSON, unknown mode); reviewer probed all, all held. `nargs="?"` composes with the no-args short-circuit because the short-circuit runs before `parse_args`.
 - **Follow-ups**: none.
 - **Memory**: none.
+
+## 2026-05-27 23:53 — #10 Pull all repo issues with metadata
+- PM: 5-way canonicalization — fixed AC1's broken `wc -l` (header line off-by-one), added Non-goal bounding to ≤1000 issues, pinned dataclasses in Notes, tightened AC3 (source + defensive PR filter) and AC4 (count match + #1 present). Wrote ADR-0002 alongside (slightly stretches the ADR convention; reviewer noted as non-blocking).
+- Implementer: new `harness_radar.collector` package (`__init__.py` public API + `gh.py` private shelling). `IssueRecord` is `@dataclass(frozen=True)` with `tuple[str, ...]` for labels/assignees, 10 fields per AC2. CLI wired — placeholder from #7 is gone; valid repos now print `Collected N issues from <slug>`. 17 new tests (35 total), all edge cases (gh missing, malformed JSON, SSH remote, snake_case `pull_request` key, non-GitHub remote) covered. 1 commit (8b06777).
+- Tester evidence: posted on #10 (comment 4561457850); 3-axis count agreement (gh CLI = harness-radar CLI = Python API = 30). All 4 AC ticked.
+- Reviewer round 1: REQUEST_CHANGES — CI red because the new CLI dogfood test calls real `gh issue list` but the workflow's `GH_TOKEN` was scoped only to `init` step, not `verify`.
+- CI fix (committed on feature branch, not main — avoids the rebase-friction pattern from #6/#7): 6a44ccc hoisted `GH_TOKEN` to job-level `env`, added explicit `permissions: issues: read` at workflow top-level.
+- Reviewer round 2: APPROVE. CI green in 20s.
+- PR: #33 — 2 commits (impl + ci fix); both CI green.
