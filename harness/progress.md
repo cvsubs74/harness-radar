@@ -1,89 +1,51 @@
 # Progress log
 
-Append-only. Each session adds an entry. Never rewrite history.
+Personal session log. Normally append-only; explicitly reorganized 2026-05-27 23:10 at user request to group topically within chronological order and to tighten verbose entries. Future sessions resume append-only.
 
-Format:
-
-```
-## YYYY-MM-DD HH:MM — <event>
-- <bullet 1>
-- <bullet 2>
-```
-
-Events include: `kickoff`, `F<NNN> <title>`, `retro F<NNN>`, `shipped F<NNN>`, `note`.
+Events: `kickoff`, `#N <title>` (build session), `shipped #N`, `retro #N`, `note`.
 
 ---
 
-<!-- Future entries appended below. The first will be the /kickoff entry. -->
-
 ## 2026-05-26 19:02 — note
-- Discussion-only session: assessed whether the engineering-workflow harness scales to complex server+client products.
-- No code, features, or harness files changed. No /kickoff run yet — features.json still empty.
-- Conclusion: harness discipline (acceptance criteria, ADRs, agent pipeline, append-only log) ports to any scale; specific tooling (features.json as SoT, one-feature-per-session, worktree parallelism) is sized for solo/small-team work.
+- Discussion-only session: assessed whether the engineering-workflow harness scales to complex products. Discipline (AC, ADRs, agent pipeline, append-only log) ports; specific tooling (features.json SoT, one-feature-per-session, worktree parallelism) is sized for solo/small teams.
 
 ## 2026-05-26 21:30 — note
-- Harness rewrite: GitHub Issues are now the source of truth (features.json removed).
-- Plan executed in 8 commits (c7b707b → 5c09f91): foundation scripts, GH issue forms/PR template/CODEOWNERS, agent specs, worktree scripts, slash commands, hooks, top-level docs, and final deletion of features.json + schema.
-- Plan file: /Users/csubramanian@onetrust.com/.claude/plans/toasty-cooking-treehouse.md
-- Outstanding: .claude/settings.json needs 4 new Bash permits for scripts/gh-*.sh (auto-mode classifier blocked the edit). Surfaced for manual application.
-- Not pushed — local commits awaiting user's call on push.
+- Harness rewrite to GitHub-first SoT shipped in 8 commits (c7b707b → 5c09f91). Plan: ~/.claude/plans/toasty-cooking-treehouse.md. Outstanding: `.claude/settings.json` needs 4 manual permits for `scripts/gh-*.sh`.
 
 ## 2026-05-27 18:05 — kickoff
-- Mode: github (cvsubs74/harness-radar, public)
-- Spec: docs/spec.md — local CLI that reads gh + harness/progress.md and emits a velocity + harness-discipline report (lead time, throughput, agent-pipeline stage timings, AC re-edit smell detector).
-- Epics filed: 5 (#1-#5)
-- Stories filed: 21 (P0: 8, P1: 10, P2: 3; #6-#26), all sub-issue-linked to their epic, all on project #2, all on milestone v0.1
-- Architecture: Python 3.11+ CLI, pipx-installed, stdlib sqlite3 cache, subprocess(gh) + jinja2 templating, src-layout, pytest+ruff
-- ADR 0001: stack pick (harness/decisions/0001-stack.md) — rejected Node (better-sqlite3 native build threatened 60s install budget) and Go (overkill for 21-story MVP)
-- Bootstrap audit: 1 closed spike issue (#27)
-- Verify: bash harness/init.sh + bash harness/verify.sh both exit 0 (ruff clean, 1 smoke test passing)
+- Mode: github (cvsubs74/harness-radar, public). Spec: local CLI reading `gh` + `harness/progress.md`, emits velocity + harness-discipline report.
+- Backlog: 5 epics (#1-#5) + 21 stories (8 P0 / 10 P1 / 3 P2, #6-#26), all on project #2 / milestone v0.1.
+- Stack: Python 3.11+ CLI, pipx-installed, stdlib sqlite3, `subprocess(gh)` + jinja2. ADR-0001 + closed spike #27 record the trade-off vs Node and Go.
+- Baseline init.sh + verify.sh green (ruff + 1 smoke pytest).
 
 ## 2026-05-27 18:25 — #6 Add CLI entrypoint and --help
-- PM: added 5th AC bullet for the no-args→help case (Summary said it but no AC enforced it; argparse default would silently exit 0).
-- Implementer: stdlib argparse, `_CapitalUsageFormatter` to satisfy AC1's `Usage:` casing, explicit `len(argv)==0` short-circuit for AC3. 1 commit (2bb544e), 6/6 pytest, ruff clean.
-- Tester evidence: posted on #6 (comment 4560048826), all 5 AC ticked.
-- Reviewer: approved as comment (self-review can't formally --approve on GitHub). No blocking issues.
-- PR: #30 — CI `verify` green.
-- Baseline fixes discovered en route (committed straight to main as infra patches):
-  - 85ae1a5: gh-project.sh `items(first: 200)` → `100` (GraphQL caps connections at 100). Bug #28 filed for proper pagination.
-  - In-place fix to project board: Status field options corrected from defaults (Todo/In Progress/Done) to the harness-canonical (Todo/In progress/In review/Done) via updateProjectV2Field mutation. Bug #29 filed for gh-bootstrap.sh to detect+fix auto-created system fields.
+- PM added 5th AC for the no-args→help case (Summary promised it; argparse default would silently no-op).
+- Implementer: stdlib argparse, custom formatter for `Usage:` casing, explicit no-args short-circuit. 1 commit (2bb544e), 6/6 pytest.
+- PR #30, CI green. Tester evidence + reviewer comment on issue.
+- Baseline fixes mid-session (direct to main): 85ae1a5 capped `gh-project.sh items(first:200)` → 100 (bug #28 filed for proper pagination). Board Status options corrected via GraphQL `updateProjectV2Field` (bug #29 for `gh-bootstrap.sh` to handle existing system fields).
 
 ## 2026-05-27 18:31 — shipped #6
-- PR #30 squash-merged as 81312f9, remote and local branches deleted.
-- Tracking: issue #6 auto-closed by `Closes #6`; project board → Done.
+- PR #30 squash-merged as 81312f9. Issue auto-closed; board → Done.
 
 ## 2026-05-27 18:34 — retro #6
-- **What worked**: agent pipeline ran clean (PM → impl → tester → reviewer); PM caught the no-args AC gap *before* impl, exactly as designed; direct-to-main commits for baseline fixes kept the feature PR uncontaminated by infra patches.
-- **What didn't**: two harness bugs (#28 GraphQL `first:200` cap, #29 Status field defaults) had to be patched mid-session to make the pipeline actually work — the kickoff "succeeded" without exercising any of those code paths; self-review can't formally `--approve` on GitHub, so the reviewer agent had to drop to `--comment` (branch protection here doesn't require approvals so it didn't block, but a stricter setup would have stalled).
-- **Surprises**: GitHub Projects v2 GraphQL `items` connection is hard-capped at 100, not the typical "ask for what you want"; `Status` is a non-deletable system field that can only be reshaped via `updateProjectV2Field` (no `gh` CLI surface); `gh project create` auto-creates Status with GitHub defaults so the bootstrap script's "create if missing" idempotency check silently skipped the customization.
-- **Follow-ups**: #28 (P2, pagination), #29 (P1, bootstrap detect+update existing system fields), and new #31 (P2, /kickoff should smoke-test gh-project.sh transitions against a throwaway issue before declaring done) — that last one would have caught #28 and #29 at kickoff.
-- **Memory candidates**: saved `gh-projects-v2-quirks.md` capturing the three external API constraints — they'll bite any future harness/project using Projects v2 from `gh`.
+- **Worked**: pipeline ran clean; PM caught the no-args gap before impl; direct-to-main baseline commits kept the feature PR uncontaminated.
+- **Didn't**: kickoff "succeeded" without exercising `gh-project.sh` — #28/#29 only surfaced on first /next; self-review can't formally `--approve` (reviewer fell back to `--comment`).
+- **Surprises**: Projects v2 GraphQL `items` capped at 100; `Status` is an undeletable system field, only mutable via `updateProjectV2Field`; `gh project create` auto-creates Status with GitHub defaults, defeating the bootstrap script's "create if missing" idempotency.
+- **Follow-ups**: #28, #29, new #31 (P2 — /kickoff should smoke-test gh-project.sh transitions).
+- **Memory**: saved `gh-projects-v2-quirks.md`.
+- **Addendum (recorded 23:03, posted as #6 comment 4561148047)**: pattern visible only after 2 ships — /next's `log(#N)` commit on main puts the open PR behind under strict-mode protection, forcing the next /ship to rebase + force-push + CI re-run (~30s). Three dissolves: move log into the squash commit, defer log to /ship, or accept the friction. Per user, not filing as a separate issue.
 
 ## 2026-05-27 22:27 — #7 Validate target repo is a github-mode harness repo
-- PM: 3-way canonicalization — reworded AC4 (collector step doesn't exist yet → exit 0 + no stderr error + placeholder OK), added a 5th AC for "has .claude but no harness/init.sh" (tightened detection beyond CLAUDE.md's default-github fallback), and Notes now specify the positional `repo` arg.
-- Implementer: extracted `validate_repo(path) -> None` raising a typed `RepoValidationError`; CLI catches and prints to stderr (exit 1, distinct from argparse's exit 2 for usage errors). Placeholder `(collector not yet implemented)` on stdout for valid repos. 1 commit (706e49a); pytest grew 6 → 18 (10 unit + 2 e2e new). Composes cleanly with #6's no-args→help short-circuit.
-- Tester evidence: posted on #7 (comment 4561066014), all 5 AC ticked with independently-built mktemp fixtures (not reusing implementer's commands).
-- Reviewer: approved as comment. Edge cases probed beyond the AC list — malformed JSON, missing `mode` key, non-dict JSON, unknown mode value, symlink-to-dir — all handled. Two minor nits noted but non-blocking.
-- PR: #32 — CI `verify` green twice.
+- PM 3-way canonicalization: reworded AC4 (collector doesn't exist yet → exit 0 + no stderr error + placeholder OK); added 5th AC for `.claude` present but `harness/init.sh` missing; Notes pin the positional `repo` arg.
+- Implementer: extracted `validate_repo(path) -> None` raising typed `RepoValidationError`; CLI exits 1 (distinct from argparse's 2). Placeholder `(collector not yet implemented)` on stdout for valid repos. 1 commit (706e49a); pytest 6 → 18. Composes cleanly with #6's no-args short-circuit.
+- PR #32, CI green twice. Tester evidence + reviewer comment on issue.
 
 ## 2026-05-27 22:32 — shipped #7
-- PR #32 squash-merged as 33b017f, remote and local branches deleted.
-- Branch had to be rebased onto main before merge (the log(#7) commit on main put it behind the strict-mode required check); single force-with-lease push, CI re-ran green in 21s, then squash-merge.
-- Tracking: issue #7 auto-closed by `Closes #7`; project board → Done.
-
-## 2026-05-27 23:03 — retro #6 (addendum)
-- **Pattern (visible only after 2 ships, not after 1)**: `/next` writes a `log(#N)` commit to `main` immediately after opening the PR. Under strict-mode branch protection (`required_status_checks.strict: true`), this puts the open PR behind base by one commit and the next `/ship` has to rebase + force-push + wait for CI re-run. Cost ~30s per ship; both /ship sessions hit it.
-- **Three ways to dissolve** (not filing as a separate issue per user direction; this retro thread is the canonical home):
-  1. Move `log(#N)` into the squash commit (write progress entry on the feature branch).
-  2. Defer `log(#N)` to /ship and merge "did the work" + "shipped it" into one entry at merge time.
-  3. Live with the rebase.
-- **Posted as addendum comment**: https://github.com/cvsubs74/harness-radar/issues/6#issuecomment-4561148047
-- **Follow-ups**: none filed (per user — pattern stays in the retro thread).
-- **Memory candidates**: none; this is a harness-internal observation, not an external API quirk worth saving.
+- PR #32 squash-merged as 33b017f. Branch needed rebase + force-with-lease before merge to satisfy strict-mode (CI re-ran 21s) — the same pattern called out in #6's addendum. Issue auto-closed; board → Done.
 
 ## 2026-05-27 23:09 — retro #7
-- **What worked**: PM canonicalized three real ambiguities upfront (collector-doesn't-exist-yet, detection looseness, implicit positional arg) instead of rubber-stamping — implementer didn't have to invent any of those decisions. Implementer designed for future use without being asked: extracted `validate_repo(path) -> None` as a pure public seam so the future collector can `import` it directly rather than re-shelling the CLI. Test suite grew 6→18 with a healthy unit/e2e split (10 unit, 2 e2e) — kept verify fast (0.73s).
-- **What didn't**: rebase-before-merge friction hit again (already captured in #6's retro addendum, not double-filing). Nothing else notable.
-- **Surprises**: implementer voluntarily added edge-case unit tests beyond the AC (malformed JSON, missing `mode` key, non-dict JSON, unknown mode value) — reviewer probed those and they all held. Scope quietly expanded in a good way; pleasant signal about agent quality. Also: `nargs="?"` on a positional argument composes cleanly with #6's `len(argv)==0` short-circuit because the short-circuit runs before `parse_args` — verified by reviewer.
-- **Follow-ups**: none. Considered filing one to formalize the exit-code convention (implementer picked 1 vs argparse's 2 by judgment; was a one-line choice in the report), but it's a single line in the architecture cross-cutting section, not story-sized work.
-- **Memory candidates**: none. Nothing external-system-specific surfaced; the "extract pure function as public seam before consumer exists" pattern is general engineering wisdom and doesn't belong in project memory.
+- **Worked**: PM canonicalized three real ambiguities upfront; implementer designed for future use by extracting `validate_repo` as a pure public seam for the not-yet-existent collector; suite grew 6 → 18 with healthy unit/e2e split, verify still 0.73s.
+- **Didn't**: rebase-before-merge friction again (captured in #6 addendum).
+- **Surprises**: implementer voluntarily added edge-case tests beyond AC (malformed JSON, missing `mode` key, non-dict JSON, unknown mode); reviewer probed all, all held. `nargs="?"` composes with the no-args short-circuit because the short-circuit runs before `parse_args`.
+- **Follow-ups**: none.
+- **Memory**: none.
