@@ -2,23 +2,97 @@
 
 Per ADR-0001, the CLI is built on stdlib `argparse` — no third-party CLI
 library in v0.1. This module is intentionally thin: it wires up flags,
-prints help, and surfaces the version. Subcommand dispatch is a non-goal
-for v0.1 (issue #6 Non-goals).
+prints help, validates the target repo, and surfaces the version.
+Subcommand dispatch is a non-goal for v0.1 (issue #6 Non-goals).
 
 Behavior:
-* ``harness-radar --help`` / ``-h``  -> exit 0, prints usage to stdout.
-* ``harness-radar`` (no args)        -> exit 0, prints the same usage.
-* ``harness-radar --version``        -> exit 0, prints ``harness-radar <semver>``.
-* ``harness-radar --unknown-flag``   -> exit 2, error on stderr naming the flag.
+* ``harness-radar --help`` / ``-h``    -> exit 0, prints usage to stdout.
+* ``harness-radar`` (no args)          -> exit 0, prints the same usage.
+* ``harness-radar --version``          -> exit 0, prints ``harness-radar <semver>``.
+* ``harness-radar --unknown-flag``     -> exit 2, error on stderr naming the flag.
+* ``harness-radar <repo>``             -> validates the directory is a
+  github-mode engineering-workflow harness repo (issue #7). On failure,
+  exits 1 with a distinct error on stderr. On success, prints a
+  placeholder line ``(collector not yet implemented)`` and exits 0;
+  the real collector hand-off lands in a separate ``area:collector``
+  story.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from pathlib import Path
 from typing import Sequence
 
 from harness_radar import __version__
+
+
+class RepoValidationError(Exception):
+    """Raised when the target directory is not a valid github-mode harness repo.
+
+    Caught by ``main()`` and rendered to stderr; the message is the only
+    user-facing surface. Each call site uses a distinct keyword so the
+    five issue-#7 acceptance cases stay individually grep-able by tests.
+    """
+
+
+def validate_repo(path: Path) -> None:
+    """Validate that ``path`` is a github-mode engineering-workflow harness repo.
+
+    Raises ``RepoValidationError`` with a clear message on the first
+    failed check. Checks run in the order the acceptance criteria list
+    them, so the error a user sees matches the most specific failure
+    mode.
+
+    Detection signal (per issue #7 Notes): the directory MUST contain
+    both ``.claude/`` and ``harness/init.sh``. Mode comes from
+    ``.claude/harness-mode.json`` if present; absent file defaults to
+    ``github`` per the project's CLAUDE.md contract.
+    """
+    # AC1: path must exist and be a directory.
+    if not path.exists():
+        raise RepoValidationError(
+            f"{path}: does not exist"
+        )
+    if not path.is_dir():
+        raise RepoValidationError(
+            f"{path}: does not exist as a directory (not a directory)"
+        )
+
+    # AC2: must have a .claude/ directory.
+    claude_dir = path / ".claude"
+    if not claude_dir.is_dir():
+        raise RepoValidationError(
+            f"{path}: not a harness repo (no .claude directory)"
+        )
+
+    # AC3: must have harness/init.sh — the second marker that distinguishes
+    # an engineering-workflow harness repo from any other repo that happens
+    # to have a .claude/ directory.
+    init_sh = path / "harness" / "init.sh"
+    if not init_sh.is_file():
+        raise RepoValidationError(
+            f"{path}: not a harness repo (missing harness/init.sh)"
+        )
+
+    # AC4: reject local-mode repos. Absent file defaults to github per
+    # CLAUDE.md, so we only reject when the file is present AND says local.
+    mode_file = claude_dir / "harness-mode.json"
+    if mode_file.is_file():
+        try:
+            mode_payload = json.loads(mode_file.read_text())
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RepoValidationError(
+                f"{mode_file}: could not parse harness-mode.json: {exc}"
+            ) from exc
+        mode = mode_payload.get("mode") if isinstance(mode_payload, dict) else None
+        if mode == "local":
+            raise RepoValidationError(
+                f"{path}: local mode is not supported in v0.1 "
+                "(only github-mode harness repos are supported)"
+            )
 
 
 class _CapitalUsageFormatter(argparse.HelpFormatter):
@@ -54,6 +128,19 @@ def _build_parser() -> argparse.ArgumentParser:
         action="version",
         version=f"harness-radar {__version__}",
     )
+    # nargs="?" + default="." keeps the issue-#6 no-args -> help behavior
+    # intact: when argv is empty we short-circuit to print_help before
+    # argparse ever runs, so the default is only consumed when other
+    # arguments are supplied without a positional.
+    parser.add_argument(
+        "repo",
+        nargs="?",
+        default=".",
+        help=(
+            "Path to a github-mode engineering-workflow harness repo "
+            "(default: current directory)."
+        ),
+    )
     return parser
 
 
@@ -69,14 +156,26 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = _build_parser()
 
-    # AC #3: no-args invocation prints help and exits 0. argparse's default
-    # is to do nothing (since there are no required positionals), so we
-    # short-circuit before parse_args.
+    # AC #3 on issue #6: no-args invocation prints help and exits 0.
+    # Short-circuit before argparse so the positional default isn't
+    # silently exercised against the cwd.
     if len(argv) == 0:
         parser.print_help(sys.stdout)
         return 0
 
     # parse_args handles --help / -h (exit 0), --version (exit 0), and
     # unknown flags (exit 2 with stderr message naming the flag).
-    parser.parse_args(argv)
+    args = parser.parse_args(argv)
+
+    # Issue #7: validate the target repo before any downstream work.
+    try:
+        validate_repo(Path(args.repo))
+    except RepoValidationError as exc:
+        print(f"harness-radar: {exc}", file=sys.stderr)
+        return 1
+
+    # Placeholder per issue #7 AC5: the collector module is a separate
+    # story (area:collector). For now, signal success and announce the
+    # gap on stdout so the user knows nothing was reported.
+    print("(collector not yet implemented)")
     return 0
