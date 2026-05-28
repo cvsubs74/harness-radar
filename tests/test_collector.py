@@ -27,8 +27,15 @@ from unittest.mock import patch
 
 import pytest
 
-from harness_radar.collector import CollectorError, IssueRecord, collect_issues
+from harness_radar.collector import (
+    CollectorError,
+    EditRecord,
+    IssueRecord,
+    collect_edits,
+    collect_issues,
+)
 from harness_radar.collector.gh import (
+    _GH_EDITS_LIMIT,
     _GH_ISSUE_LIMIT,
     _record_from_payload,
     _resolve_github_slug,
@@ -363,6 +370,245 @@ def _gh_baseline_count() -> int:
         check=True, capture_output=True, text=True,
     )
     return int(result.stdout.strip())
+
+
+# ---- Unit tests (issue #11): collect_edits + EditRecord ----
+
+
+def _fake_edit_node(
+    *,
+    edited_at: str,
+    editor_login: str | None,
+    diff: str = "some diff",
+) -> dict:
+    """Build one ``userContentEdits.nodes[]`` payload.
+
+    Mirrors the wire shape so a schema drift fails loudly here. When
+    ``editor_login`` is ``None`` the ``editor`` field is rendered as a
+    JSON null (the way GitHub returns redacted editors), not omitted.
+    """
+    return {
+        "editedAt": edited_at,
+        "editor": None if editor_login is None else {"login": editor_login},
+        "diff": diff,
+    }
+
+
+def _fake_edits_graphql(nodes: list[dict]) -> dict:
+    return {
+        "data": {
+            "repository": {
+                "issue": {
+                    "userContentEdits": {"nodes": nodes}
+                }
+            }
+        }
+    }
+
+
+def _patch_gh_graphql_returning(payload: dict | str):
+    """Patch ``subprocess.run`` so any ``gh`` call returns ``payload``.
+
+    ``payload`` may be a dict (JSON-encoded for stdout) or a raw string
+    (for the malformed-JSON test).
+    """
+    stdout = payload if isinstance(payload, str) else json.dumps(payload)
+
+    def fake_run(cmd, *args, **kwargs):
+        if isinstance(cmd, (list, tuple)) and cmd and cmd[0] == "gh":
+            return subprocess.CompletedProcess(
+                args=cmd, returncode=0, stdout=stdout, stderr=""
+            )
+        raise AssertionError(f"unexpected cmd: {cmd}")
+
+    return patch("harness_radar.collector.gh.subprocess.run", side_effect=fake_run)
+
+
+def test_collect_edits_returns_empty_tuple_for_unedited_issue() -> None:
+    """AC1: empty ``nodes`` -> empty tuple."""
+    with _patch_gh_graphql_returning(_fake_edits_graphql([])):
+        result = collect_edits("cvsubs74/harness-radar", 42)
+    assert result == ()
+    assert isinstance(result, tuple)
+
+
+def test_collect_edits_parses_three_nodes_oldest_first() -> None:
+    """AC2 + AC3: each node maps to a typed record; output is oldest-first.
+
+    Input is deliberately newest-first (matching what GitHub's GraphQL
+    actually returns in practice) — the output tuple must be the
+    reverse, oldest-first.
+    """
+    nodes = [
+        _fake_edit_node(
+            edited_at="2026-05-28T01:22:53Z",
+            editor_login="cvsubs74",
+            diff="latest diff",
+        ),
+        _fake_edit_node(
+            edited_at="2026-05-28T01:14:24Z",
+            editor_login="cvsubs74",
+            diff="middle diff",
+        ),
+        _fake_edit_node(
+            edited_at="2026-05-28T00:56:42Z",
+            editor_login="cvsubs74",
+            diff="oldest diff",
+        ),
+    ]
+    with _patch_gh_graphql_returning(_fake_edits_graphql(nodes)):
+        result = collect_edits("cvsubs74/harness-radar", 6)
+
+    assert len(result) == 3
+    assert all(isinstance(r, EditRecord) for r in result)
+    # AC3: oldest-first.
+    assert [r.diff for r in result] == ["oldest diff", "middle diff", "latest diff"]
+    # AC2: edited_at is a UTC-aware datetime; editor is the login string.
+    assert result[0].edited_at == datetime(2026, 5, 28, 0, 56, 42, tzinfo=timezone.utc)
+    assert result[0].editor == "cvsubs74"
+    assert result[-1].edited_at == datetime(2026, 5, 28, 1, 22, 53, tzinfo=timezone.utc)
+
+
+def test_collect_edits_handles_null_editor() -> None:
+    """AC2: redacted editor (``editor: null``) maps to ``EditRecord.editor=None``."""
+    nodes = [
+        _fake_edit_node(
+            edited_at="2026-05-28T00:56:42Z",
+            editor_login=None,
+            diff="redacted-editor diff",
+        ),
+    ]
+    with _patch_gh_graphql_returning(_fake_edits_graphql(nodes)):
+        result = collect_edits("cvsubs74/harness-radar", 6)
+    assert len(result) == 1
+    assert result[0].editor is None
+    assert result[0].diff == "redacted-editor diff"
+
+
+def test_edit_record_is_frozen() -> None:
+    """Frozen — downstream metrics must not mutate."""
+    record = EditRecord(
+        edited_at=datetime(2026, 5, 28, tzinfo=timezone.utc),
+        editor="cvsubs74",
+        diff="d",
+    )
+    with pytest.raises(Exception):  # FrozenInstanceError on 3.11+
+        record.editor = "mallory"  # type: ignore[misc]
+
+
+def test_collect_edits_gh_not_on_path_raises_collector_error() -> None:
+    def fake_run(cmd, *args, **kwargs):
+        if isinstance(cmd, (list, tuple)) and cmd and cmd[0] == "gh":
+            raise FileNotFoundError("gh")
+        raise AssertionError(f"unexpected cmd: {cmd}")
+
+    with patch("harness_radar.collector.gh.subprocess.run", side_effect=fake_run):
+        with pytest.raises(CollectorError) as exc:
+            collect_edits("cvsubs74/harness-radar", 6)
+    assert "gh CLI not found" in str(exc.value)
+
+
+def test_collect_edits_gh_nonzero_exit_raises_collector_error() -> None:
+    def fake_run(cmd, *args, **kwargs):
+        if isinstance(cmd, (list, tuple)) and cmd and cmd[0] == "gh":
+            raise subprocess.CalledProcessError(
+                returncode=4,
+                cmd=cmd,
+                stderr="HTTP 401: Bad credentials",
+            )
+        raise AssertionError(f"unexpected cmd: {cmd}")
+
+    with patch("harness_radar.collector.gh.subprocess.run", side_effect=fake_run):
+        with pytest.raises(CollectorError) as exc:
+            collect_edits("cvsubs74/harness-radar", 6)
+    msg = str(exc.value)
+    assert "gh api graphql failed" in msg
+    assert "exit 4" in msg
+    assert "Bad credentials" in msg
+
+
+def test_collect_edits_non_json_raises_collector_error() -> None:
+    with _patch_gh_graphql_returning("not json at all"):
+        with pytest.raises(CollectorError) as exc:
+            collect_edits("cvsubs74/harness-radar", 6)
+    assert "non-JSON" in str(exc.value)
+
+
+def test_collect_edits_issue_not_found_raises_collector_error() -> None:
+    """``repository.issue: null`` -> typed error naming the slug + number."""
+    payload = {"data": {"repository": {"issue": None}}}
+    with _patch_gh_graphql_returning(payload):
+        with pytest.raises(CollectorError) as exc:
+            collect_edits("cvsubs74/harness-radar", 9999)
+    msg = str(exc.value)
+    assert "9999" in msg
+    assert "cvsubs74/harness-radar" in msg
+
+
+def test_collect_edits_rejects_bare_slug() -> None:
+    """Slug must be '<owner>/<name>' — no implicit defaults."""
+    with pytest.raises(CollectorError) as exc:
+        collect_edits("just-a-name", 6)
+    assert "owner" in str(exc.value).lower()
+
+
+def test_collect_edits_gh_command_line_uses_graphql_with_variables() -> None:
+    """The gh call shells ``gh api graphql`` with owner/name/number variables."""
+    captured: dict = {}
+
+    def fake_run(cmd, *args, **kwargs):
+        captured["cmd"] = cmd
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=0,
+            stdout=json.dumps(_fake_edits_graphql([])),
+            stderr="",
+        )
+
+    with patch("harness_radar.collector.gh.subprocess.run", side_effect=fake_run):
+        collect_edits("cvsubs74/harness-radar", 6)
+
+    cmd = captured["cmd"]
+    assert cmd[:3] == ["gh", "api", "graphql"]
+    # owner / name / number passed as variables.
+    assert "owner=cvsubs74" in cmd
+    assert "name=harness-radar" in cmd
+    assert "number=6" in cmd
+    # Query references userContentEdits with the hard cap.
+    query_arg = next(a for a in cmd if a.startswith("query="))
+    assert "userContentEdits" in query_arg
+    assert f"first: {_GH_EDITS_LIMIT}" in query_arg
+
+
+# ---- End-to-end (issue #11): live edit history for #6 ----
+
+
+def test_collect_edits_against_this_repo_for_issue_6() -> None:
+    """AC4: real ``gh api graphql`` against ``cvsubs74/harness-radar#6``.
+
+    Issue #6 has documented PM body edits (the no-args AC bullet that
+    landed during canonicalization). Skip when ``gh`` is missing or
+    unauthenticated so dev machines without auth still get a clean
+    suite — mirrors the skip pattern in the AC1 baseline test above.
+    """
+    try:
+        records = collect_edits("cvsubs74/harness-radar", 6)
+    except (FileNotFoundError, CollectorError) as exc:
+        # CollectorError wraps both the "gh not found" and "auth/permission"
+        # surfaces; either way the dev environment can't run the live test.
+        pytest.skip(f"gh CLI not available or not authenticated: {exc}")
+
+    assert len(records) >= 1, "issue #6 has known body edits; expected >= 1 record"
+    # AC: oldest-first ordering.
+    assert all(
+        records[i].edited_at <= records[i + 1].edited_at
+        for i in range(len(records) - 1)
+    )
+    # PM did the canonicalization edits under their account.
+    editors = {r.editor for r in records}
+    assert "cvsubs74" in editors
+    # All diffs are non-empty plain-text.
+    assert all(isinstance(r.diff, str) and r.diff for r in records)
 
 
 def test_collect_against_this_repo_matches_baseline_and_includes_issue_1() -> None:

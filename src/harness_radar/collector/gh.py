@@ -28,6 +28,27 @@ from pathlib import Path
 # paginate past it in v0.1.
 _GH_ISSUE_LIMIT = 1000
 
+# Issue #11: ``userContentEdits(first: N)`` is hard-capped at 100 by the
+# GitHub GraphQL schema. v0.1 fixtures don't exceed this; pagination
+# beyond 100 edits per issue is tracked separately and is an explicit
+# non-goal of #11.
+_GH_EDITS_LIMIT = 100
+
+# GraphQL query for issue body edit history. Variables: owner, name,
+# number. Lives at module scope so the test that inspects the gh
+# command line can compare against it without re-typing the string.
+_GH_EDITS_QUERY = (
+    "query($owner: String!, $name: String!, $number: Int!) {"
+    "  repository(owner: $owner, name: $name) {"
+    "    issue(number: $number) {"
+    "      userContentEdits(first: " + str(_GH_EDITS_LIMIT) + ") {"
+    "        nodes { editedAt editor { login } diff }"
+    "      }"
+    "    }"
+    "  }"
+    "}"
+)
+
 # Fields to pull. Keep this aligned with ``IssueRecord`` — every field on
 # the dataclass must appear here, or ``_record_from_payload`` will crash
 # on a ``KeyError`` and surface that the contract drifted.
@@ -56,6 +77,26 @@ class CollectorError(Exception):
     malformed JSON payload from ``gh``. The CLI catches this and exits
     1 — same convention as ``RepoValidationError``.
     """
+
+
+@dataclass(frozen=True)
+class EditRecord:
+    """One edit to an Issue body — issue #11.
+
+    Sourced from GraphQL ``Issue.userContentEdits.nodes``. Frozen so
+    metrics code can rely on immutability; same convention as
+    ``IssueRecord``.
+
+    ``editor`` is ``str | None`` because GitHub returns ``null`` when
+    the editor's account has been deleted or the edit has been
+    redacted. AC2 on issue #11 covers that case explicitly. ``diff`` is
+    the raw plain-text diff string GraphQL exposes; v0.1 ships it
+    unparsed (rendering / AC-specific diffing is a separate epic).
+    """
+
+    edited_at: datetime
+    editor: str | None
+    diff: str
 
 
 @dataclass(frozen=True)
@@ -248,6 +289,125 @@ def _record_from_payload(payload: dict) -> IssueRecord:
         created_at=_parse_iso8601(payload["createdAt"]),
         closed_at=_parse_iso8601(payload.get("closedAt")),
     )
+
+
+def collect_edits(repo_slug: str, issue_number: int) -> tuple[EditRecord, ...]:
+    """Return the body edit history for one issue, oldest-first.
+
+    Lazy by design (#11 Notes): ``collect_issues`` doesn't paid the N+1
+    cost of fetching edits for every issue. Callers that need edits
+    (today: the AC re-edit detector) ask per-issue via this function.
+
+    Returns an empty tuple if the issue has never been edited. Raises
+    ``CollectorError`` for the same surfaces ``collect_issues`` does:
+    missing ``gh``, non-zero exit, malformed JSON. Additionally raises
+    if the response has ``repository.issue == null`` (issue number not
+    found in the slug).
+
+    The API's ordering is newest-first in practice; we sort defensively
+    on ``edited_at`` rather than trust it.
+    """
+    payload = _run_gh_edits_query(repo_slug, issue_number)
+    repository = payload.get("data", {}).get("repository")
+    if not isinstance(repository, dict):
+        raise CollectorError(
+            f"gh api graphql returned no 'repository' for {repo_slug}: {payload}"
+        )
+    issue = repository.get("issue")
+    if issue is None:
+        raise CollectorError(
+            f"issue {issue_number} not found in {repo_slug}"
+        )
+    edits_block = issue.get("userContentEdits") or {}
+    nodes = edits_block.get("nodes") or []
+
+    records: list[EditRecord] = []
+    for node in nodes:
+        editor_obj = node.get("editor")
+        editor_login: str | None
+        if isinstance(editor_obj, dict):
+            editor_login = editor_obj.get("login")
+        else:
+            editor_login = None
+        edited_at = _parse_iso8601(node.get("editedAt"))
+        if edited_at is None:
+            # GitHub always populates editedAt for a real edit node; if
+            # it's missing, the schema drifted and we should surface
+            # that, not silently substitute now().
+            raise CollectorError(
+                f"edit node for {repo_slug}#{issue_number} missing 'editedAt': {node}"
+            )
+        records.append(
+            EditRecord(
+                edited_at=edited_at,
+                editor=editor_login,
+                diff=node.get("diff", "") or "",
+            )
+        )
+
+    # Defensive sort — API order is newest-first today but we don't
+    # want to depend on that. AC3 mandates oldest-first.
+    records.sort(key=lambda r: r.edited_at)
+    return tuple(records)
+
+
+def _run_gh_edits_query(slug: str, issue_number: int) -> dict:
+    """Shell ``gh api graphql`` for one issue's edits and return parsed JSON.
+
+    Centralised so tests mock one ``subprocess.run`` call. Slug is
+    split into owner/name here so the GraphQL variables stay typed.
+    """
+    if "/" not in slug:
+        raise CollectorError(
+            f"repo slug {slug!r} is not in '<owner>/<name>' form"
+        )
+    owner, name = slug.split("/", 1)
+    cmd = [
+        "gh",
+        "api",
+        "graphql",
+        "-f",
+        f"query={_GH_EDITS_QUERY}",
+        "-F",
+        f"owner={owner}",
+        "-F",
+        f"name={name}",
+        "-F",
+        f"number={issue_number}",
+    ]
+    try:
+        result = subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise CollectorError(
+            "gh CLI not found on PATH; install GitHub CLI "
+            "(https://cli.github.com) and run 'gh auth login'"
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        raise CollectorError(
+            f"gh api graphql failed for {slug}#{issue_number} "
+            f"(exit {exc.returncode}): {stderr}"
+        ) from exc
+
+    try:
+        payload = json.loads(result.stdout or "{}")
+    except json.JSONDecodeError as exc:
+        raise CollectorError(
+            f"gh api graphql returned non-JSON output for "
+            f"{slug}#{issue_number}: {exc}"
+        ) from exc
+
+    if not isinstance(payload, dict):
+        raise CollectorError(
+            f"gh api graphql returned non-object payload for "
+            f"{slug}#{issue_number}: {type(payload).__name__}"
+        )
+    return payload
 
 
 def _parse_iso8601(value: str | None) -> datetime | None:
