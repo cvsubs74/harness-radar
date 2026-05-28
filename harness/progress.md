@@ -71,6 +71,10 @@ Events: `kickoff`, `#N <title>` (build session), `shipped #N`, `retro #N`, `note
 - Discovery worth flagging: `gh issue view --json userContentEdits` returns "Unknown JSON field" — the GraphQL endpoint is the ONLY path. The implementer verified live before relying on it.
 - PR: #34 — CI green.
 
+## 2026-05-28 09:51 — shipped #11
+- PR #34 squash-merged as ad6ae96. Branch rebased onto main (same friction pattern as prior ships), CI re-ran 17s, then merge.
+- Tracking: issue #11 auto-closed by `Closes #11`; project board → Done.
+
 ## 2026-05-27 23:57 — retro #10
 - **Worked**: PM did substantive 5-way canonicalization including catching the broken `wc -l` baseline (would've been untestable); implementer designed the collector as a *package* not a module, anticipating PR-cycle / body-edit-history stories — same forward-thinking pattern as #7's `validate_repo` seam; reviewer's `gh pr checks --required` discipline caught a CI-only failure that tester missed (first multi-round review of the session, harness handled it cleanly).
 - **Didn't**: tester ran `verify.sh` locally (passed because local has `gh` auth) but didn't think to check `gh pr checks` for CI status — a real blind spot when tests exercise external state. Worth strengthening the tester prompt for collector/CI-touching stories. Rebase friction hit a third time, same dissolves available in #6 addendum.
