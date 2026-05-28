@@ -52,4 +52,10 @@ Events include: `kickoff`, `F<NNN> <title>`, `retro F<NNN>`, `shipped F<NNN>`, `
 - PR #30 squash-merged as 81312f9, remote and local branches deleted.
 - Tracking: issue #6 auto-closed by `Closes #6`; project board → Done.
 
+## 2026-05-27 18:34 — retro #6
+- **What worked**: agent pipeline ran clean (PM → impl → tester → reviewer); PM caught the no-args AC gap *before* impl, exactly as designed; direct-to-main commits for baseline fixes kept the feature PR uncontaminated by infra patches.
+- **What didn't**: two harness bugs (#28 GraphQL `first:200` cap, #29 Status field defaults) had to be patched mid-session to make the pipeline actually work — the kickoff "succeeded" without exercising any of those code paths; self-review can't formally `--approve` on GitHub, so the reviewer agent had to drop to `--comment` (branch protection here doesn't require approvals so it didn't block, but a stricter setup would have stalled).
+- **Surprises**: GitHub Projects v2 GraphQL `items` connection is hard-capped at 100, not the typical "ask for what you want"; `Status` is a non-deletable system field that can only be reshaped via `updateProjectV2Field` (no `gh` CLI surface); `gh project create` auto-creates Status with GitHub defaults so the bootstrap script's "create if missing" idempotency check silently skipped the customization.
+- **Follow-ups**: #28 (P2, pagination), #29 (P1, bootstrap detect+update existing system fields), and new #31 (P2, /kickoff should smoke-test gh-project.sh transitions against a throwaway issue before declaring done) — that last one would have caught #28 and #29 at kickoff.
+- **Memory candidates**: saved `gh-projects-v2-quirks.md` capturing the three external API constraints — they'll bite any future harness/project using Projects v2 from `gh`.
 
