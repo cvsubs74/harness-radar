@@ -59,3 +59,9 @@ Events include: `kickoff`, `F<NNN> <title>`, `retro F<NNN>`, `shipped F<NNN>`, `
 - **Follow-ups**: #28 (P2, pagination), #29 (P1, bootstrap detect+update existing system fields), and new #31 (P2, /kickoff should smoke-test gh-project.sh transitions against a throwaway issue before declaring done) — that last one would have caught #28 and #29 at kickoff.
 - **Memory candidates**: saved `gh-projects-v2-quirks.md` capturing the three external API constraints — they'll bite any future harness/project using Projects v2 from `gh`.
 
+## 2026-05-27 22:27 — #7 Validate target repo is a github-mode harness repo
+- PM: 3-way canonicalization — reworded AC4 (collector step doesn't exist yet → exit 0 + no stderr error + placeholder OK), added a 5th AC for "has .claude but no harness/init.sh" (tightened detection beyond CLAUDE.md's default-github fallback), and Notes now specify the positional `repo` arg.
+- Implementer: extracted `validate_repo(path) -> None` raising a typed `RepoValidationError`; CLI catches and prints to stderr (exit 1, distinct from argparse's exit 2 for usage errors). Placeholder `(collector not yet implemented)` on stdout for valid repos. 1 commit (706e49a); pytest grew 6 → 18 (10 unit + 2 e2e new). Composes cleanly with #6's no-args→help short-circuit.
+- Tester evidence: posted on #7 (comment 4561066014), all 5 AC ticked with independently-built mktemp fixtures (not reusing implementer's commands).
+- Reviewer: approved as comment. Edge cases probed beyond the AC list — malformed JSON, missing `mode` key, non-dict JSON, unknown mode value, symlink-to-dir — all handled. Two minor nits noted but non-blocking.
+- PR: #32 — CI `verify` green twice.
