@@ -65,3 +65,9 @@ Events include: `kickoff`, `F<NNN> <title>`, `retro F<NNN>`, `shipped F<NNN>`, `
 - Tester evidence: posted on #7 (comment 4561066014), all 5 AC ticked with independently-built mktemp fixtures (not reusing implementer's commands).
 - Reviewer: approved as comment. Edge cases probed beyond the AC list — malformed JSON, missing `mode` key, non-dict JSON, unknown mode value, symlink-to-dir — all handled. Two minor nits noted but non-blocking.
 - PR: #32 — CI `verify` green twice.
+
+## 2026-05-27 22:32 — shipped #7
+- PR #32 squash-merged as 33b017f, remote and local branches deleted.
+- Branch had to be rebased onto main before merge (the log(#7) commit on main put it behind the strict-mode required check); single force-with-lease push, CI re-ran green in 21s, then squash-merge.
+- Tracking: issue #7 auto-closed by `Closes #7`; project board → Done.
+
