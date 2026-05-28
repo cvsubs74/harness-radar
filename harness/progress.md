@@ -71,3 +71,12 @@ Events include: `kickoff`, `F<NNN> <title>`, `retro F<NNN>`, `shipped F<NNN>`, `
 - Branch had to be rebased onto main before merge (the log(#7) commit on main put it behind the strict-mode required check); single force-with-lease push, CI re-ran green in 21s, then squash-merge.
 - Tracking: issue #7 auto-closed by `Closes #7`; project board → Done.
 
+## 2026-05-27 23:03 — retro #6 (addendum)
+- **Pattern (visible only after 2 ships, not after 1)**: `/next` writes a `log(#N)` commit to `main` immediately after opening the PR. Under strict-mode branch protection (`required_status_checks.strict: true`), this puts the open PR behind base by one commit and the next `/ship` has to rebase + force-push + wait for CI re-run. Cost ~30s per ship; both /ship sessions hit it.
+- **Three ways to dissolve** (not filing as a separate issue per user direction; this retro thread is the canonical home):
+  1. Move `log(#N)` into the squash commit (write progress entry on the feature branch).
+  2. Defer `log(#N)` to /ship and merge "did the work" + "shipped it" into one entry at merge time.
+  3. Live with the rebase.
+- **Posted as addendum comment**: https://github.com/cvsubs74/harness-radar/issues/6#issuecomment-4561148047
+- **Follow-ups**: none filed (per user — pattern stays in the retro thread).
+- **Memory candidates**: none; this is a harness-internal observation, not an external API quirk worth saving.
