@@ -58,3 +58,7 @@ Events: `kickoff`, `#N <title>` (build session), `shipped #N`, `retro #N`, `note
 - CI fix (committed on feature branch, not main — avoids the rebase-friction pattern from #6/#7): 6a44ccc hoisted `GH_TOKEN` to job-level `env`, added explicit `permissions: issues: read` at workflow top-level.
 - Reviewer round 2: APPROVE. CI green in 20s.
 - PR: #33 — 2 commits (impl + ci fix); both CI green.
+
+## 2026-05-27 23:58 — shipped #10
+- PR #33 squash-merged as 2b10114. Branch rebased onto main before merge (the log(#10) commit on main put it behind, same pattern as #6/#7); single force-with-lease push, CI re-ran 23s, then merge.
+- Tracking: issue #10 auto-closed by `Closes #10`; project board → Done.
