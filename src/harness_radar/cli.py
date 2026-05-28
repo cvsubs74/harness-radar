@@ -11,11 +11,13 @@ Behavior:
 * ``harness-radar --version``          -> exit 0, prints ``harness-radar <semver>``.
 * ``harness-radar --unknown-flag``     -> exit 2, error on stderr naming the flag.
 * ``harness-radar <repo>``             -> validates the directory is a
-  github-mode engineering-workflow harness repo (issue #7). On failure,
-  exits 1 with a distinct error on stderr. On success, prints a
-  placeholder line ``(collector not yet implemented)`` and exits 0;
-  the real collector hand-off lands in a separate ``area:collector``
-  story.
+  github-mode engineering-workflow harness repo (issue #7), then runs
+  the collector (issue #10) to pull every issue (open + closed). On
+  validation failure, exits 1 with a distinct error on stderr. On
+  collector failure (e.g. ``gh`` missing, non-GitHub remote), exits 1
+  with the underlying CollectorError message on stderr. On success,
+  prints a one-line summary ``Collected N issues from <owner>/<name>``
+  and exits 0. Full report rendering is a future story.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ from pathlib import Path
 from typing import Sequence
 
 from harness_radar import __version__
+from harness_radar.collector import CollectorError, collect_issues
 
 
 class RepoValidationError(Exception):
@@ -168,14 +171,40 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     # Issue #7: validate the target repo before any downstream work.
+    repo_path = Path(args.repo)
     try:
-        validate_repo(Path(args.repo))
+        validate_repo(repo_path)
     except RepoValidationError as exc:
         print(f"harness-radar: {exc}", file=sys.stderr)
         return 1
 
-    # Placeholder per issue #7 AC5: the collector module is a separate
-    # story (area:collector). For now, signal success and announce the
-    # gap on stdout so the user knows nothing was reported.
-    print("(collector not yet implemented)")
+    # Issue #10: pull every issue (open + closed) from the target repo.
+    # Full report rendering is a future story; this story is about
+    # proving the data path. The summary line keeps the test surface
+    # mechanical (count + slug) without committing to any report shape.
+    try:
+        records = collect_issues(repo_path)
+    except CollectorError as exc:
+        print(f"harness-radar: {exc}", file=sys.stderr)
+        return 1
+
+    slug = _format_slug(repo_path)
+    print(f"Collected {len(records)} issues from {slug}")
     return 0
+
+
+def _format_slug(repo_path: Path) -> str:
+    """Best-effort ``<owner>/<name>`` for the post-collect summary line.
+
+    On any failure (no git, no origin, non-GitHub URL) we fall back to
+    the bare path string. The collector already validated the remote
+    when it ran successfully, so this is purely a presentation helper
+    and must not raise — a partial summary is still better than a
+    crash after we've already pulled the data.
+    """
+    from harness_radar.collector.gh import _resolve_github_slug
+
+    try:
+        return _resolve_github_slug(repo_path)
+    except CollectorError:
+        return str(repo_path)

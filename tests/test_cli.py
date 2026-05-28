@@ -28,14 +28,6 @@ def _run(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _make_harness_repo(root: Path) -> Path:
-    """Build a minimal github-mode harness repo on disk for the CLI to inspect."""
-    (root / ".claude").mkdir()
-    (root / "harness").mkdir()
-    (root / "harness" / "init.sh").write_text("#!/usr/bin/env bash\n")
-    return root
-
-
 def test_help_long_flag_exits_zero_and_prints_usage_and_purpose() -> None:
     res = _run("--help")
     assert res.returncode == 0, res.stderr
@@ -78,17 +70,22 @@ def test_nonexistent_repo_arg_exits_nonzero_with_stderr(tmp_path: Path) -> None:
     res = _run(str(missing))
     assert res.returncode != 0, res.stdout
     assert "does not exist" in res.stderr
-    # No collector noise on the failure path.
-    assert "collector not yet implemented" not in res.stdout
+    # No collector summary on the failure path.
+    assert "Collected" not in res.stdout
 
 
-def test_valid_repo_exits_zero_with_placeholder_and_clean_stderr(
-    tmp_path: Path,
-) -> None:
-    _make_harness_repo(tmp_path)
-    res = _run(str(tmp_path))
+def test_valid_repo_runs_collector_and_prints_summary() -> None:
+    """End-to-end happy-path: a valid harness repo with a GitHub remote
+    should validate, then run the collector, then print the
+    ``Collected N issues from <slug>`` summary on stdout with a clean
+    stderr and exit 0. We point the CLI at this very repo so we get
+    a real ``gh issue list`` call — this is the same shape as the
+    issue-#10 AC4 dogfood check, just at the CLI layer.
+    """
+    repo_root = Path(__file__).resolve().parent.parent
+    res = _run(str(repo_root))
     assert res.returncode == 0, res.stderr
-    # Placeholder per AC5 — visible signal that nothing was reported yet.
-    assert "collector not yet implemented" in res.stdout
+    # Summary line format is load-bearing for AC4 — the count + slug.
+    assert re.match(r"Collected \d+ issues from \S+/\S+", res.stdout) is not None, res.stdout
     # No validation error should reach stderr on the happy path.
     assert res.stderr == ""

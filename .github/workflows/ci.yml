@@ -5,9 +5,15 @@ on:
     branches: [main]
   push:
 
+permissions:
+  contents: read
+  issues: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
 
@@ -27,8 +33,6 @@ jobs:
         run: jq --version
 
       - name: init
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: bash harness/init.sh
 
       - name: verify
