@@ -38,3 +38,14 @@ Events include: `kickoff`, `F<NNN> <title>`, `retro F<NNN>`, `shipped F<NNN>`, `
 - Bootstrap audit: 1 closed spike issue (#27)
 - Verify: bash harness/init.sh + bash harness/verify.sh both exit 0 (ruff clean, 1 smoke test passing)
 
+## 2026-05-27 18:25 — #6 Add CLI entrypoint and --help
+- PM: added 5th AC bullet for the no-args→help case (Summary said it but no AC enforced it; argparse default would silently exit 0).
+- Implementer: stdlib argparse, `_CapitalUsageFormatter` to satisfy AC1's `Usage:` casing, explicit `len(argv)==0` short-circuit for AC3. 1 commit (2bb544e), 6/6 pytest, ruff clean.
+- Tester evidence: posted on #6 (comment 4560048826), all 5 AC ticked.
+- Reviewer: approved as comment (self-review can't formally --approve on GitHub). No blocking issues.
+- PR: #30 — CI `verify` green.
+- Baseline fixes discovered en route (committed straight to main as infra patches):
+  - 85ae1a5: gh-project.sh `items(first: 200)` → `100` (GraphQL caps connections at 100). Bug #28 filed for proper pagination.
+  - In-place fix to project board: Status field options corrected from defaults (Todo/In Progress/Done) to the harness-canonical (Todo/In progress/In review/Done) via updateProjectV2Field mutation. Bug #29 filed for gh-bootstrap.sh to detect+fix auto-created system fields.
+
+
