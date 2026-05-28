@@ -80,3 +80,10 @@ Events include: `kickoff`, `F<NNN> <title>`, `retro F<NNN>`, `shipped F<NNN>`, `
 - **Posted as addendum comment**: https://github.com/cvsubs74/harness-radar/issues/6#issuecomment-4561148047
 - **Follow-ups**: none filed (per user — pattern stays in the retro thread).
 - **Memory candidates**: none; this is a harness-internal observation, not an external API quirk worth saving.
+
+## 2026-05-27 23:09 — retro #7
+- **What worked**: PM canonicalized three real ambiguities upfront (collector-doesn't-exist-yet, detection looseness, implicit positional arg) instead of rubber-stamping — implementer didn't have to invent any of those decisions. Implementer designed for future use without being asked: extracted `validate_repo(path) -> None` as a pure public seam so the future collector can `import` it directly rather than re-shelling the CLI. Test suite grew 6→18 with a healthy unit/e2e split (10 unit, 2 e2e) — kept verify fast (0.73s).
+- **What didn't**: rebase-before-merge friction hit again (already captured in #6's retro addendum, not double-filing). Nothing else notable.
+- **Surprises**: implementer voluntarily added edge-case unit tests beyond the AC (malformed JSON, missing `mode` key, non-dict JSON, unknown mode value) — reviewer probed those and they all held. Scope quietly expanded in a good way; pleasant signal about agent quality. Also: `nargs="?"` on a positional argument composes cleanly with #6's `len(argv)==0` short-circuit because the short-circuit runs before `parse_args` — verified by reviewer.
+- **Follow-ups**: none. Considered filing one to formalize the exit-code convention (implementer picked 1 vs argparse's 2 by judgment; was a one-line choice in the report), but it's a single line in the architecture cross-cutting section, not story-sized work.
+- **Memory candidates**: none. Nothing external-system-specific surfaced; the "extract pure function as public seam before consumer exists" pattern is general engineering wisdom and doesn't belong in project memory.
