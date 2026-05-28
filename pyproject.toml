@@ -1,0 +1,34 @@
+[project]
+name = "harness-radar"
+version = "0.0.1"
+description = "Local CLI that emits velocity and harness-discipline reports for repos using the engineering-workflow harness."
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+readme = "README.md"
+dependencies = [
+  "jinja2>=3.1",
+]
+
+[project.scripts]
+harness-radar = "harness_radar.cli:main"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "ruff>=0.6",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

@@ -27,3 +27,14 @@ Events include: `kickoff`, `F<NNN> <title>`, `retro F<NNN>`, `shipped F<NNN>`, `
 - Plan file: /Users/csubramanian@onetrust.com/.claude/plans/toasty-cooking-treehouse.md
 - Outstanding: .claude/settings.json needs 4 new Bash permits for scripts/gh-*.sh (auto-mode classifier blocked the edit). Surfaced for manual application.
 - Not pushed — local commits awaiting user's call on push.
+
+## 2026-05-27 18:05 — kickoff
+- Mode: github (cvsubs74/harness-radar, public)
+- Spec: docs/spec.md — local CLI that reads gh + harness/progress.md and emits a velocity + harness-discipline report (lead time, throughput, agent-pipeline stage timings, AC re-edit smell detector).
+- Epics filed: 5 (#1-#5)
+- Stories filed: 21 (P0: 8, P1: 10, P2: 3; #6-#26), all sub-issue-linked to their epic, all on project #2, all on milestone v0.1
+- Architecture: Python 3.11+ CLI, pipx-installed, stdlib sqlite3 cache, subprocess(gh) + jinja2 templating, src-layout, pytest+ruff
+- ADR 0001: stack pick (harness/decisions/0001-stack.md) — rejected Node (better-sqlite3 native build threatened 60s install budget) and Go (overkill for 21-story MVP)
+- Bootstrap audit: 1 closed spike issue (#27)
+- Verify: bash harness/init.sh + bash harness/verify.sh both exit 0 (ruff clean, 1 smoke test passing)
+

@@ -4,36 +4,72 @@
 
 ## Stack
 
-<!-- e.g. Next.js 14 (TypeScript) + Postgres 16 + Vercel. Rationale in 0001-stack.md. -->
+Python 3.11+, single-package CLI installed via `pipx install .`. Stdlib `sqlite3` for the response cache, `subprocess` for shelling `gh` (auth + rate-limit headers come for free), `jinja2` for markdown/HTML templating, `pytest` for tests, `pyproject.toml` + `uv` for dev workflow. Rationale and rejected alternatives: [`harness/decisions/0001-stack.md`](../harness/decisions/0001-stack.md).
 
 ## Modules
 
-<!-- 3-7 top-level modules and what each owns. -->
+Five top-level packages under `src/harness_radar/`. Boundaries are enforced by import direction — `cli` may import everything; `metrics` and `report` may not import `collector` or `cache`; `collector` may import `cache` but not vice versa.
 
-| Module | Owns | Notes |
+| Module | Owns | Key entry points |
 |---|---|---|
-| | | |
+| `cli/` | argparse wiring, repo validation, exit codes, flag routing (`--out`, `--issue`, `--ac-audit`, `--scan`, `--no-cache`, `--format`). | `cli.main:main()` |
+| `collector/` | All `gh` + GraphQL calls. Normalizes raw responses into typed dataclasses. Owns pagination + rate-limit retry. | `collector.gh:GhCollector.collect(repo)` |
+| `cache/` | SQLite-backed read-through cache of GraphQL response bodies keyed by `(repo, query_hash, variables_hash)`. TTL + `--no-cache` bypass. | `cache.store:CacheStore` |
+| `metrics/` | Pure functions over collector dataclasses: lead-time, throughput, stage-timing, AC re-edit detection. No I/O. Returns structured `dataclass` results. | `metrics.{lead_time, throughput, stages, ac_audit}` |
+| `report/` | Renders metrics structs to markdown (default) or single-file HTML via jinja2 templates. No I/O beyond the writer the CLI passes in. | `report.markdown:render()`, `report.html:render()` |
+
+Tests live in `tests/` mirroring the package layout. Fixtures (recorded `gh api` JSON, sample issue bodies with staged AC edits) live in `tests/fixtures/`.
 
 ## Data model
 
-<!-- 3-10 core entities and their relationships. Not a full schema — a sketch. -->
+In-memory dataclasses produced by `collector/` and consumed by `metrics/`. The SQLite cache stores raw GraphQL response blobs — not these structs — so schema evolution doesn't require cache invalidation logic.
+
+- **Repo** — `owner`, `name`, `local_path`, optional `project_number` (from target repo's `.github/project-config.json`).
+- **Issue** — `number`, `title`, `body`, `state`, `author`, `labels[]`, `milestone`, `assignees[]`, `created_at`, `closed_at`, `body_edits[]`, `status_events[]`, `closing_prs[]`.
+- **BodyEdit** — `edited_at`, `editor` (nullable — GitHub redacts for some accounts), `diff` (or `before`/`after`).
+- **StatusEvent** — `at`, `value` (`Todo` | `In progress` | `In review` | `Done`).
+- **PullRequest** — `number`, `author`, `created_at`, `merged_at`, `additions`, `deletions`.
+
+SQLite cache schema (one table, `responses`):
+
+```
+CREATE TABLE responses (
+  key TEXT PRIMARY KEY,        -- sha256(repo || query || canonical(vars))
+  repo TEXT NOT NULL,
+  fetched_at INTEGER NOT NULL, -- epoch seconds
+  body BLOB NOT NULL           -- gzipped JSON
+);
+CREATE INDEX idx_responses_repo ON responses(repo);
+```
+
+Default TTL: 15 minutes (documented in `cache/store.py` docstring). `--no-cache` skips both read and write paths.
 
 ## External dependencies
 
-<!-- Third-party APIs, auth, payments, email, observability. -->
-
-| Dep | Purpose | ADR |
+| Dep | Purpose | Notes |
 |---|---|---|
-| | | |
+| `gh` CLI ≥ 2.40 | All GitHub I/O (REST via `gh api`, GraphQL via `gh api graphql -f query=...`). | Required scopes: `repo`, `read:org`, `project`. Collector probes `gh auth status` on startup and emits a clear error if missing. |
+| GitHub GraphQL API | `Issue.userContentEdits` (the only path to body history), `ProjectV2Item.fieldValues`, `Issue.timelineItems` for closing-PR linkage. | Reached through `gh api graphql`, not a direct HTTP client — auth + rate-limit headers handled by `gh`. |
+| Python 3.11+ | Runtime. | Min version pinned in `pyproject.toml`. |
+| `jinja2` | Templating for markdown + HTML reports. | Only third-party runtime dep besides `gh` itself. |
+| `pytest`, `pytest-cov` | Tests. | Dev only. |
+
+No web framework. No hosted database. No telemetry. No package-manager beyond `pipx` for end users and `uv` for contributors.
 
 ## Cross-cutting concerns
 
-- **Auth:** <model>
-- **Logging:** <approach>
-- **Config:** <approach>
-- **Secrets:** <approach>
-- **Error handling:** <conventions>
+- **Auth** — delegated to `gh`. We never see a token. CLI fails early with a remediation message if `gh auth status` reports unauthenticated or missing `project` scope.
+- **Logging** — stdlib `logging`, default level `WARNING`. `--verbose`/`-v` raises to `INFO`, `-vv` to `DEBUG`. All log records go to stderr so they never contaminate the report on stdout.
+- **Config** — none required for the common path. Optional `~/.config/harness-radar/config.toml` for cache TTL override. Target-repo discovery reads `.claude/harness-mode.json` (default `github` if absent) and `.github/project-config.json` for the project number.
+- **Secrets** — none stored. The cache contains only public-or-already-authorized GitHub API payloads keyed per repo, in the user's cache dir (`~/.cache/harness-radar/` on Linux, `~/Library/Caches/harness-radar/` on macOS — derived from `platformdirs`-equivalent stdlib path logic).
+- **Error handling** — exit codes: `0` success, `1` collector / runtime error, `2` usage error. Rate-limit responses retry with exponential backoff (1s, 2s, 4s, 8s, 16s) before surfacing a clear stderr error. Every user-facing error includes a one-line remediation hint.
+- **Performance** — 60-second cold install + first-run budget (issue #26). Met by: single-query GraphQL bundles where possible, SQLite cache on subsequent runs, lazy imports (no `jinja2` import on `--help`), and no native-extension dependencies that would block `pipx install` on a clean machine.
 
 ## Out of scope
 
-<!-- Explicit non-goals. -->
+- Hosted multi-tenant dashboard, auth, user management, real-time/websocket updates (spec).
+- Non-GitHub trackers (Jira, Linear) and local-mode (`harness/backlog.md`) repos — v0.1 is github-mode only (spec).
+- Interactive TUI / charts in the HTML report — single-file static HTML only (issue #22). If a future story demands interactivity, that's a fresh ADR.
+- Parallel paging in the collector — sequential is the v0.1 stance (issue #13).
+- Multi-project-per-repo support — one project per repo (issue #12).
+- Auto-filing bugs on flagged AC re-edits (issue #16 non-goal).

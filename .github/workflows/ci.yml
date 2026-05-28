@@ -4,7 +4,6 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
 
 jobs:
   verify:
@@ -12,13 +11,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: pyproject.toml
+
       - name: Make harness scripts executable
         run: chmod +x harness/*.sh scripts/*.sh .claude/hooks/*.sh
 
-      # The devops agent extends this job during /kickoff with stack-specific
-      # setup (setup-node, setup-python, etc.) and dep caching.
+      - name: Confirm gh is available
+        run: gh --version
+
+      - name: Confirm jq is available
+        run: jq --version
 
       - name: init
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: bash harness/init.sh
 
       - name: verify

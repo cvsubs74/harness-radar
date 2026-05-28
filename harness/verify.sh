@@ -1,35 +1,35 @@
 #!/usr/bin/env bash
-# verify.sh — end-to-end smoke test for this product.
+# verify.sh — end-to-end smoke test for harness-radar.
 #
-# This is a template. The devops agent fills it in during /kickoff
-# based on the chosen stack.
-#
-# Contract:
-#   - exit 0 only if everything required for the product to function works
-#   - includes a real user-visible check (HTTP probe, CLI invocation, UI assertion)
-#   - includes the test suite
-#
-# Example (Node web app):
-#   set -euo pipefail
-#   for i in {1..20}; do
-#     curl -sf http://localhost:3000 >/dev/null && break
-#     sleep 1
-#   done
-#   curl -sf http://localhost:3000 | grep -q "<title>"
-#   npm test
-#
-# Example (Python API):
-#   set -euo pipefail
-#   for i in {1..20}; do
-#     curl -sf http://localhost:8000/healthz >/dev/null && break
-#     sleep 1
-#   done
-#   curl -sf http://localhost:8000/healthz | jq -e '.status == "ok"'
-#   pytest -q
-#
-# Until /kickoff fills this in, this exits 0 so the harness is usable.
+# Runs lint + tests inside the project venv. Re-bootstraps the venv via
+# init.sh if missing, so a fresh clone can `bash harness/verify.sh` directly.
 
 set -euo pipefail
 
-echo "verify.sh: TEMPLATE — fill in via /kickoff (devops agent)."
-exit 0
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VENV_DIR="${REPO_ROOT}/.venv"
+
+if [ ! -x "${VENV_DIR}/bin/python" ]; then
+  echo "verify.sh: .venv missing — running init.sh"
+  bash "${REPO_ROOT}/harness/init.sh"
+fi
+
+# shellcheck disable=SC1091
+source "${VENV_DIR}/bin/activate"
+
+step() {
+  echo "verify.sh: -> $*"
+}
+
+fail() {
+  echo "verify.sh: FAILED at step: $*" >&2
+  exit 1
+}
+
+step "ruff check"
+ruff check "${REPO_ROOT}/src" "${REPO_ROOT}/tests" || fail "ruff"
+
+step "pytest"
+pytest -q "${REPO_ROOT}/tests" || fail "pytest"
+
+echo "verify.sh: verify OK"
